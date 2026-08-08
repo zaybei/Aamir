@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nova · Calculator</title>
+<style>
+  :root {
+    --bg-1: #0f0c29;
+    --bg-2: #302b63;
+    --bg-3: #24243e;
+    --glass: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --text: #f5f6ff;
+    --muted: rgba(245, 246, 255, 0.45);
+    --accent: #7c5cff;
+    --accent-2: #22d3ee;
+    --op: #ff7a59;
+    --equal-1: #6a5cff;
+    --equal-2: #22d3ee;
+    --shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.65);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(-45deg, var(--bg-1), var(--bg-2), var(--bg-3), #1a1a40);
+    background-size: 400% 400%;
+    animation: gradientShift 18s ease infinite;
+  }
+
+  @keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* floating orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.5;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .orb.a { width: 340px; height: 340px; background: #7c5cff; top: -80px; left: -60px; animation: float1 14s ease-in-out infinite; }
+  .orb.b { width: 300px; height: 300px; background: #22d3ee; bottom: -90px; right: -70px; animation: float2 16s ease-in-out infinite; }
+  .orb.c { width: 220px; height: 220px; background: #ff7a59; bottom: 20%; left: 8%; animation: float1 20s ease-in-out infinite reverse; }
+
+  @keyframes float1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px,50px); } }
+  @keyframes float2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-50px,-40px); } }
+
+  .calculator {
+    position: relative;
+    z-index: 1;
+    width: min(380px, 92vw);
+    padding: 26px;
+    border-radius: 30px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.15);
+    animation: rise 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(30px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding: 0 4px;
+  }
+  .brand h1 {
+    font-size: 15px;
+    letter-spacing: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent-2);
+    box-shadow: 0 0 12px var(--accent-2);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .display {
+    text-align: right;
+    padding: 20px 16px 22px;
+    border-radius: 20px;
+    background: rgba(0,0,0,0.28);
+    border: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 20px;
+    overflow: hidden;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .history {
+    font-size: 16px;
+    color: var(--muted);
+    min-height: 22px;
+    word-break: break-all;
+    transition: opacity 0.2s;
+  }
+  .current {
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 1.1;
+    word-break: break-all;
+    transition: transform 0.12s ease;
+  }
+  .current.pop { animation: pop 0.16s ease; }
+  @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  button.key {
+    position: relative;
+    overflow: hidden;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    height: 62px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 6px 14px -8px rgba(0,0,0,0.6);
+    transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+  }
+  button.key:hover { background: rgba(255,255,255,0.14); transform: translateY(-2px); }
+  button.key:active { transform: translateY(1px) scale(0.96); }
+
+  .key.op {
+    color: var(--op);
+    font-weight: 600;
+    background: rgba(255,122,89,0.12);
+    border-color: rgba(255,122,89,0.25);
+  }
+  .key.op:hover { background: rgba(255,122,89,0.22); }
+
+  .key.fn {
+    color: var(--accent-2);
+    background: rgba(34,211,238,0.10);
+    border-color: rgba(34,211,238,0.22);
+    font-size: 19px;
+  }
+  .key.fn:hover { background: rgba(34,211,238,0.2); }
+
+  .key.equal {
+    grid-column: span 2;
+    color: #fff;
+    font-weight: 700;
+    background: linear-gradient(120deg, var(--equal-1), var(--equal-2));
+    border: none;
+    box-shadow: 0 10px 26px -8px rgba(106,92,255,0.7);
+  }
+  .key.equal:hover { filter: brightness(1.08); transform: translateY(-2px); }
+
+  .key.zero { grid-column: span 2; }
+
+  /* ripple */
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    background: rgba(255,255,255,0.4);
+    animation: rippleEffect 0.55s ease-out;
+    pointer-events: none;
+  }
+  @keyframes rippleEffect { to { transform: scale(3.2); opacity: 0; } }
+
+  .hint {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+  <div class="orb c"></div>
+
+  <div class="calculator">
+    <div class="brand">
+      <h1>Nova</h1>
+      <span class="dot"></span>
+    </div>
+
+    <div class="display">
+      <div class="history" id="history"></div>
+      <div class="current" id="current">0</div>
+    </div>
+
+    <div class="keys">
+      <button class="key fn" data-action="clear">AC</button>
+      <button class="key fn" data-action="sign">±</button>
+      <button class="key fn" data-action="percent">%</button>
+      <button class="key op" data-op="/">÷</button>
+
+      <button class="key" data-num="7">7</button>
+      <button class="key" data-num="8">8</button>
+      <button class="key" data-num="9">9</button>
+      <button class="key op" data-op="*">×</button>
+
+      <button class="key" data-num="4">4</button>
+      <button class="key" data-num="5">5</button>
+      <button class="key" data-num="6">6</button>
+      <button class="key op" data-op="-">−</button>
+
+      <button class="key" data-num="1">1</button>
+      <button class="key" data-num="2">2</button>
+      <button class="key" data-num="3">3</button>
+      <button class="key op" data-op="+">+</button>
+
+      <button class="key fn" data-action="back">⌫</button>
+      <button class="key zero" data-num="0">0</button>
+      <button class="key" data-num=".">.</button>
+      <button class="key equal" data-action="equals">=</button>
+    </div>
+
+    <div class="hint">Tip: use your keyboard — numbers, + − × ÷, Enter, Esc</div>
+  </div>
+
+<script>
+  const currentEl = document.getElementById('current');
+  const historyEl = document.getElementById('history');
+
+  let current = '0';
+  let previous = null;
+  let operator = null;
+  let justEvaluated = false;
+
+  const opSymbols = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+
+  function fmt(n) {
+    if (n === '' || n === null) return '0';
+    if (n === 'Error') return n;
+    const num = parseFloat(n);
+    if (!isFinite(num)) return 'Error';
+    // keep raw string if user is mid-typing (trailing dot / zeros)
+    if (typeof n === 'string' && /[.]$|\.\d*0$/.test(n) && !justEvaluated) return n;
+    const rounded = Math.round((num + Number.EPSILON) * 1e10) / 1e10;
+    return rounded.toLocaleString('en-US', { maximumFractionDigits: 10 });
+  }
+
+  function render() {
+    currentEl.textContent = current === 'Error' ? 'Error' : fmt(current);
+    currentEl.classList.remove('pop');
+    void currentEl.offsetWidth;
+    currentEl.classList.add('pop');
+
+    if (operator && previous !== null) {
+      historyEl.textContent = `${fmt(previous)} ${opSymbols[operator]}`;
+    }
+  }
+
+  function inputNum(d) {
+    if (current === 'Error') current = '0';
+    if (justEvaluated) { current = '0'; justEvaluated = false; historyEl.textContent = ''; }
+    if (d === '.') {
+      if (current.includes('.')) return;
+      current += '.';
+    } else {
+      current = current === '0' ? d : current + d;
+    }
+    render();
+  }
+
+  function chooseOp(op) {
+    if (current === 'Error') return;
+    if (operator && previous !== null && !justEvaluated) {
+      compute();
+    } else {
+      previous = current;
+    }
+    operator = op;
+    justEvaluated = false;
+    current = '0';
+    historyEl.textContent = `${fmt(previous)} ${opSymbols[operator]}`;
+  }
+
+  function compute() {
+    if (operator === null || previous === null) return;
+    const a = parseFloat(previous);
+    const b = parseFloat(current);
+    let res;
+    switch (operator) {
+      case '+': res = a + b; break;
+      case '-': res = a - b; break;
+      case '*': res = a * b; break;
+      case '/': res = b === 0 ? 'Error' : a / b; break;
+    }
+    historyEl.textContent = `${fmt(previous)} ${opSymbols[operator]} ${fmt(current)} =`;
+    current = res === 'Error' ? 'Error' : String(res);
+    previous = null;
+    operator = null;
+    justEvaluated = true;
+    render();
+  }
+
+  function clearAll() {
+    current = '0'; previous = null; operator = null; justEvaluated = false;
+    historyEl.textContent = '';
+    render();
+  }
+
+  function backspace() {
+    if (justEvaluated || current === 'Error') { clearAll(); return; }
+    current = current.length > 1 ? current.slice(0, -1) : '0';
+    render();
+  }
+
+  function toggleSign() {
+    if (current === 'Error' || current === '0') return;
+    current = current.startsWith('-') ? current.slice(1) : '-' + current;
+    render();
+  }
+
+  function percent() {
+    if (current === 'Error') return;
+    current = String(parseFloat(current) / 100);
+    render();
+  }
+
+  function ripple(e, btn) {
+    const circle = document.createElement('span');
+    const size = Math.max(btn.clientWidth, btn.clientHeight);
+    const rect = btn.getBoundingClientRect();
+    circle.style.width = circle.style.height = size + 'px';
+    circle.style.left = (e.clientX - rect.left - size / 2) + 'px';
+    circle.style.top = (e.clientY - rect.top - size / 2) + 'px';
+    circle.className = 'ripple';
+    btn.appendChild(circle);
+    setTimeout(() => circle.remove(), 600);
+  }
+
+  document.querySelectorAll('.key').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      ripple(e, btn);
+      if (btn.dataset.num !== undefined) inputNum(btn.dataset.num);
+      else if (btn.dataset.op !== undefined) chooseOp(btn.dataset.op);
+      else {
+        switch (btn.dataset.action) {
+          case 'clear': clearAll(); break;
+          case 'back': backspace(); break;
+          case 'sign': toggleSign(); break;
+          case 'percent': percent(); break;
+          case 'equals': compute(); break;
+        }
+      }
+    });
+  });
+
+  // keyboard support
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (/\d/.test(k)) inputNum(k);
+    else if (k === '.') inputNum('.');
+    else if (['+', '-', '*', '/'].includes(k)) chooseOp(k);
+    else if (k === 'Enter' || k === '=') { e.preventDefault(); compute(); }
+    else if (k === 'Escape') clearAll();
+    else if (k === 'Backspace') backspace();
+    else if (k === '%') percent();
+    else return;
+
+    // flash the matching button
+    const sel = /\d|\./.test(k) ? `[data-num="${k}"]`
+      : ['+','-','*','/'].includes(k) ? `[data-op="${k}"]`
+      : k === 'Enter' || k === '=' ? '[data-action="equals"]'
+      : k === 'Escape' ? '[data-action="clear"]'
+      : k === 'Backspace' ? '[data-action="back"]' : null;
+    if (sel) {
+      const el = document.querySelector(sel);
+      if (el) { el.style.background = 'rgba(255,255,255,0.25)'; setTimeout(() => el.style.background = '', 120); }
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
