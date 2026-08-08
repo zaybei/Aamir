@@ -206,6 +206,28 @@
     color: var(--muted);
     letter-spacing: 0.5px;
   }
+
+  .numeral-select {
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 7px 30px 7px 12px;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  .numeral-select:hover { background-color: rgba(255,255,255,0.15); border-color: var(--accent-2); }
+  .numeral-select option { background: #24243e; color: var(--text); }
 </style>
 </head>
 <body>
@@ -216,7 +238,13 @@
   <div class="calculator">
     <div class="brand">
       <h1>Nova</h1>
-      <span class="dot"></span>
+      <select class="numeral-select" id="numeralSelect" aria-label="Numeral system">
+        <option value="western">1 2 3 · Western</option>
+        <option value="arabic">١ ٢ ٣ · Arabic</option>
+        <option value="urdu">۱ ۲ ۳ · Urdu</option>
+        <option value="persian">۱ ۲ ۳ · Persian</option>
+        <option value="roman">I II III · Roman</option>
+      </select>
     </div>
 
     <div class="display">
@@ -265,6 +293,42 @@
 
   const opSymbols = { '+': '+', '-': '−', '*': '×', '/': '÷' };
 
+  let historyRaw = '';   // history stored in Western digits, transformed on display
+  let numeralMode = 'western';
+
+  // Persian & Urdu share the Extended Arabic-Indic glyphs (۰-۹);
+  // Arabic uses the Arabic-Indic glyphs (٠-٩).
+  const numeralMaps = {
+    western: ['0','1','2','3','4','5','6','7','8','9'],
+    arabic:  ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'],
+    urdu:    ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'],
+    persian: ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'],
+  };
+
+  function toRoman(num) {
+    if (isNaN(num)) return String(num);
+    const neg = num < 0;
+    num = Math.abs(num);
+    // Roman numerals can't express fractions, zero, or values above 3999 — fall back.
+    if (num !== Math.floor(num) || num > 3999) return (neg ? '-' : '') + num.toLocaleString('en-US');
+    if (num === 0) return '0';
+    const table = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],
+                   [50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+    let r = '';
+    for (const [v, s] of table) { while (num >= v) { r += s; num -= v; } }
+    return (neg ? '-' : '') + r;
+  }
+
+  // Transform a Western-digit string into the active numeral system.
+  function mapText(text) {
+    if (text === 'Error') return 'Error';
+    if (numeralMode === 'roman') {
+      return text.replace(/\d[\d,]*(\.\d+)?/g, m => toRoman(parseFloat(m.replace(/,/g, ''))));
+    }
+    const map = numeralMaps[numeralMode];
+    return text.replace(/[0-9]/g, d => map[+d]);
+  }
+
   function fmt(n) {
     if (n === '' || n === null) return '0';
     if (n === 'Error') return n;
@@ -276,20 +340,25 @@
     return rounded.toLocaleString('en-US', { maximumFractionDigits: 10 });
   }
 
+  function renderHistory() {
+    historyEl.textContent = mapText(historyRaw);
+  }
+
   function render() {
-    currentEl.textContent = current === 'Error' ? 'Error' : fmt(current);
+    currentEl.textContent = current === 'Error' ? 'Error' : mapText(fmt(current));
     currentEl.classList.remove('pop');
     void currentEl.offsetWidth;
     currentEl.classList.add('pop');
 
     if (operator && previous !== null) {
-      historyEl.textContent = `${fmt(previous)} ${opSymbols[operator]}`;
+      historyRaw = `${fmt(previous)} ${opSymbols[operator]}`;
     }
+    renderHistory();
   }
 
   function inputNum(d) {
     if (current === 'Error') current = '0';
-    if (justEvaluated) { current = '0'; justEvaluated = false; historyEl.textContent = ''; }
+    if (justEvaluated) { current = '0'; justEvaluated = false; historyRaw = ''; renderHistory(); }
     if (d === '.') {
       if (current.includes('.')) return;
       current += '.';
@@ -309,7 +378,8 @@
     operator = op;
     justEvaluated = false;
     current = '0';
-    historyEl.textContent = `${fmt(previous)} ${opSymbols[operator]}`;
+    historyRaw = `${fmt(previous)} ${opSymbols[operator]}`;
+    renderHistory();
   }
 
   function compute() {
@@ -323,7 +393,7 @@
       case '*': res = a * b; break;
       case '/': res = b === 0 ? 'Error' : a / b; break;
     }
-    historyEl.textContent = `${fmt(previous)} ${opSymbols[operator]} ${fmt(current)} =`;
+    historyRaw = `${fmt(previous)} ${opSymbols[operator]} ${fmt(current)} =`;
     current = res === 'Error' ? 'Error' : String(res);
     previous = null;
     operator = null;
@@ -333,7 +403,7 @@
 
   function clearAll() {
     current = '0'; previous = null; operator = null; justEvaluated = false;
-    historyEl.textContent = '';
+    historyRaw = '';
     render();
   }
 
@@ -408,6 +478,25 @@
     }
   });
 
+  // Relabel the digit keys to the active numeral system.
+  // Roman has no per-digit glyphs, so its keypad keeps Western digits;
+  // only the display/result renders as Roman numerals.
+  function relabelKeys() {
+    const map = numeralMode === 'roman' ? numeralMaps.western : numeralMaps[numeralMode];
+    document.querySelectorAll('.key[data-num]').forEach(btn => {
+      const d = btn.dataset.num;
+      if (d === '.') return;
+      btn.textContent = map[+d];
+    });
+  }
+
+  document.getElementById('numeralSelect').addEventListener('change', (e) => {
+    numeralMode = e.target.value;
+    relabelKeys();
+    render();
+  });
+
+  relabelKeys();
   render();
 </script>
 </body>
